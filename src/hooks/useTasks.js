@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
-import { supabase } from '../lib/supabase';
 import { getTasks } from '../services/tasks';
+import { useRealtimeChannel } from './useRealtimeChannel';
 
 export function useTasks(partyId) {
   const [tasks, setTasks] = useState([]);
@@ -9,39 +9,39 @@ export function useTasks(partyId) {
   const loadTasks = useCallback(async () => {
     if (!partyId) return;
     const { data, error } = await getTasks(partyId);
-    if (!error && data) {
-      setTasks(data);
-    }
+    if (!error && data) setTasks(data);
     setLoading(false);
   }, [partyId]);
 
+  // 🔥 Carga inicial (evita warning de setState síncrono)
   useEffect(() => {
-    if (!partyId) return;
+    let isCancelled = false;
 
-    loadTasks();
+    const fetchData = async () => {
+      if (!partyId) return;
+      const { data, error } = await getTasks(partyId);
+      if (!isCancelled && !error && data) {
+        setTasks(data);
+      }
+      if (!isCancelled) {
+        setLoading(false);
+      }
+    };
 
-    // 🔄 REALTIME: escuchar cambios en tasks
-    const channel = supabase
-      .channel(`tasks-${partyId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'tasks',
-          filter: `party_id=eq.${partyId}`,
-        },
-        (payload) => {
-          console.log('🔄 Cambio en tareas:', payload);
-          loadTasks();
-        }
-      )
-      .subscribe();
+    fetchData();
 
     return () => {
-      supabase.removeChannel(channel);
+      isCancelled = true;
     };
-  }, [partyId, loadTasks]);
+  }, [partyId]);
+
+  // 🔄 Realtime
+  useRealtimeChannel({
+    table: 'tasks',
+    filter: `party_id=eq.${partyId}`,
+    callback: () => loadTasks(),
+    enabled: !!partyId,
+  });
 
   return { tasks, loading, refresh: loadTasks };
 }

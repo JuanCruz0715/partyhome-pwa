@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, DollarSign, Calendar, Users, Lock } from 'lucide-react';
+import { X, DollarSign, Calendar, Users, Lock, TrendingUp } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { createExpense } from '../services/expenses';
 import { getPartyMembers } from '../services/parties';
@@ -14,7 +14,7 @@ export default function CreateExpenseModal({ isOpen, onClose, onSuccess, partyId
   const [category, setCategory] = useState('supermarket');
   const [paidBy, setPaidBy] = useState('');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
-  const [isShared, setIsShared] = useState(true);  // ← NUEVO
+  const [type, setType] = useState('expense'); // expense, fixed, income
   const [members, setMembers] = useState([]);
   const [loading, setLoading] = useState(false);
 
@@ -33,7 +33,7 @@ export default function CreateExpenseModal({ isOpen, onClose, onSuccess, partyId
     e.preventDefault();
 
     if (!title.trim()) {
-      toast.error('Poné un título al gasto');
+      toast.error('Poné un título');
       return;
     }
 
@@ -43,7 +43,7 @@ export default function CreateExpenseModal({ isOpen, onClose, onSuccess, partyId
     }
 
     if (!paidBy) {
-      toast.error('Seleccioná quién pagó');
+      toast.error('Seleccioná quién pagó/recibió');
       return;
     }
 
@@ -56,21 +56,22 @@ export default function CreateExpenseModal({ isOpen, onClose, onSuccess, partyId
       category,
       paidBy,
       date,
-      isShared,  // ← NUEVO
+      isIncome: type === 'income',
+      isFixed: type === 'fixed',
     });
     setLoading(false);
 
     if (error) {
-      toast.error(error.message || 'Error al crear el gasto');
+      toast.error(error.message || 'Error al guardar');
     } else {
-      toast.success(isShared ? '¡Gasto compartido registrado!' : '¡Gasto fijo registrado!');
+      toast.success('¡Registrado!');
       setTitle('');
       setDescription('');
       setAmount('');
       setCategory('supermarket');
       setPaidBy(user.id);
       setDate(new Date().toISOString().split('T')[0]);
-      setIsShared(true);
+      setType('expense');
       onSuccess?.();
       onClose();
     }
@@ -80,58 +81,52 @@ export default function CreateExpenseModal({ isOpen, onClose, onSuccess, partyId
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between p-5 border-b border-gray-100 sticky top-0 bg-white">
-          <h2 className="text-xl font-bold text-gray-900">Nuevo Gasto</h2>
-          <button
-            onClick={onClose}
-            className="p-1 text-gray-400 hover:text-gray-600 rounded-lg transition-colors"
-          >
+          <h2 className="text-xl font-bold text-gray-900">Nuevo registro</h2>
+          <button onClick={onClose} className="p-1 text-gray-400 hover:text-gray-600 rounded-lg">
             <X size={20} />
           </button>
         </div>
 
         <form onSubmit={handleSubmit} className="p-5 space-y-4">
-          {/* 🔥 SELECTOR DE TIPO DE GASTO */}
+          {/* Tipo: Gasto / Fijo / Ingreso */}
           <div>
-            <label className="label">Tipo de gasto</label>
-            <div className="grid grid-cols-2 gap-2">
+            <label className="label">Tipo</label>
+            <div className="grid grid-cols-3 gap-2">
               <button
                 type="button"
-                onClick={() => setIsShared(true)}
-                className={`p-3 rounded-lg text-left transition-all border-2 ${
-                  isShared
+                onClick={() => setType('expense')}
+                className={`p-2 rounded-lg text-center transition-all border-2 ${
+                  type === 'expense'
                     ? 'border-primary-500 bg-primary-50'
                     : 'border-gray-200 hover:border-gray-300'
                 }`}
               >
-                <div className="flex items-center gap-2 mb-1">
-                  <Users size={16} className={isShared ? 'text-primary-600' : 'text-gray-400'} />
-                  <span className={`text-sm font-medium ${isShared ? 'text-primary-700' : 'text-gray-700'}`}>
-                    Compartido
-                  </span>
-                </div>
-                <p className="text-xs text-gray-500">
-                  Se divide entre todos
-                </p>
+                <div className="text-xl">💸</div>
+                <div className="text-xs font-medium mt-1">Gasto</div>
               </button>
-
               <button
                 type="button"
-                onClick={() => setIsShared(false)}
-                className={`p-3 rounded-lg text-left transition-all border-2 ${
-                  !isShared
+                onClick={() => setType('fixed')}
+                className={`p-2 rounded-lg text-center transition-all border-2 ${
+                  type === 'fixed'
                     ? 'border-primary-500 bg-primary-50'
                     : 'border-gray-200 hover:border-gray-300'
                 }`}
               >
-                <div className="flex items-center gap-2 mb-1">
-                  <Lock size={16} className={!isShared ? 'text-primary-600' : 'text-gray-400'} />
-                  <span className={`text-sm font-medium ${!isShared ? 'text-primary-700' : 'text-gray-700'}`}>
-                    Fijo / Personal
-                  </span>
-                </div>
-                <p className="text-xs text-gray-500">
-                  No genera deuda
-                </p>
+                <div className="text-xl">🔒</div>
+                <div className="text-xs font-medium mt-1">Fijo</div>
+              </button>
+              <button
+                type="button"
+                onClick={() => setType('income')}
+                className={`p-2 rounded-lg text-center transition-all border-2 ${
+                  type === 'income'
+                    ? 'border-primary-500 bg-primary-50'
+                    : 'border-gray-200 hover:border-gray-300'
+                }`}
+              >
+                <div className="text-xl">💵</div>
+                <div className="text-xs font-medium mt-1">Ingreso</div>
               </button>
             </div>
           </div>
@@ -143,7 +138,11 @@ export default function CreateExpenseModal({ isOpen, onClose, onSuccess, partyId
               type="text"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder={isShared ? "Ej: Compra semanal" : "Ej: Alquiler"}
+              placeholder={
+                type === 'income' ? 'Ej: Sueldo' :
+                type === 'fixed' ? 'Ej: Alquiler' :
+                'Ej: Supermercado'
+              }
               className="input-field"
               autoFocus
             />
@@ -194,16 +193,16 @@ export default function CreateExpenseModal({ isOpen, onClose, onSuccess, partyId
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="Detalles del gasto..."
+              placeholder="Detalles..."
               className="input-field"
               rows={2}
             />
           </div>
 
-          {/* Quién pagó */}
+          {/* Quién */}
           <div>
             <label className="label">
-              {isShared ? '¿Quién pagó? *' : '¿Quién lo pagó? *'}
+              {type === 'income' ? '¿Quién recibió? *' : '¿Quién pagó? *'}
             </label>
             <select
               value={paidBy}
@@ -216,11 +215,6 @@ export default function CreateExpenseModal({ isOpen, onClose, onSuccess, partyId
                 </option>
               ))}
             </select>
-            {!isShared && (
-              <p className="text-xs text-gray-500 mt-1">
-                💡 Este gasto no se dividirá entre los miembros
-              </p>
-            )}
           </div>
 
           {/* Fecha */}
@@ -239,20 +233,11 @@ export default function CreateExpenseModal({ isOpen, onClose, onSuccess, partyId
 
           {/* Botones */}
           <div className="flex gap-2 pt-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="btn-secondary flex-1"
-              disabled={loading}
-            >
+            <button type="button" onClick={onClose} className="btn-secondary flex-1" disabled={loading}>
               Cancelar
             </button>
-            <button
-              type="submit"
-              className="btn-primary flex-1"
-              disabled={loading}
-            >
-              {loading ? 'Guardando...' : 'Registrar Gasto'}
+            <button type="submit" className="btn-primary flex-1" disabled={loading}>
+              {loading ? 'Guardando...' : 'Guardar'}
             </button>
           </div>
         </form>

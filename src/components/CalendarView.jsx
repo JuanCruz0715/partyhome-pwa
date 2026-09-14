@@ -14,10 +14,16 @@ import {
   isToday 
 } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { formatCurrency } from '../utils/categories';
 
 const WEEKDAYS = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
 
-export default function CalendarView({ events = [], tasks = [], expenses = [] }) {
+export default function CalendarView({ 
+  events = [], 
+  tasks = [], 
+  expenses = [],
+  fixedExpenses = [],  // ← NUEVO
+}) {
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date());
 
@@ -25,13 +31,13 @@ export default function CalendarView({ events = [], tasks = [], expenses = [] })
   const calendarDays = useMemo(() => {
     const monthStart = startOfMonth(currentMonth);
     const monthEnd = endOfMonth(currentMonth);
-    const startDate = startOfWeek(monthStart, { weekStartsOn: 1 }); // Lunes
+    const startDate = startOfWeek(monthStart, { weekStartsOn: 1 });
     const endDate = endOfWeek(monthEnd, { weekStartsOn: 1 });
 
     return eachDayOfInterval({ start: startDate, end: endDate });
   }, [currentMonth]);
 
-  // Obtener "eventos" por día (eventos + tareas con fecha + gastos)
+  // Obtener datos de un día específico
   const getDayData = (day) => {
     const eventsForDay = events.filter((e) => isSameDay(new Date(e.date), day));
     const tasksForDay = tasks.filter(
@@ -40,12 +46,17 @@ export default function CalendarView({ events = [], tasks = [], expenses = [] })
     const expensesForDay = expenses.filter(
       (e) => e.date && isSameDay(new Date(e.date), day)
     );
+    // 🔥 Gastos fijos que caen este día
+    const fixedForDay = fixedExpenses.filter(
+      (f) => f.day_of_month === day.getDate()
+    );
 
     return {
       events: eventsForDay,
       tasks: tasksForDay,
       expenses: expensesForDay,
-      total: eventsForDay.length + tasksForDay.length + expensesForDay.length,
+      fixedExpenses: fixedForDay,
+      total: eventsForDay.length + tasksForDay.length + expensesForDay.length + fixedForDay.length,
     };
   };
 
@@ -136,6 +147,9 @@ export default function CalendarView({ events = [], tasks = [], expenses = [] })
                   {dayData.tasks.length > 0 && (
                     <span className={`w-1 h-1 rounded-full ${isSelected ? 'bg-white' : 'bg-blue-500'}`} />
                   )}
+                  {dayData.fixedExpenses.length > 0 && (
+                    <span className={`w-1 h-1 rounded-full ${isSelected ? 'bg-white' : 'bg-indigo-500'}`} />
+                  )}
                   {dayData.expenses.length > 0 && (
                     <span className={`w-1 h-1 rounded-full ${isSelected ? 'bg-white' : 'bg-green-500'}`} />
                   )}
@@ -155,6 +169,10 @@ export default function CalendarView({ events = [], tasks = [], expenses = [] })
         <div className="flex items-center gap-1">
           <span className="w-2 h-2 rounded-full bg-blue-500" />
           Tareas
+        </div>
+        <div className="flex items-center gap-1">
+          <span className="w-2 h-2 rounded-full bg-indigo-500" />
+          Fijos
         </div>
         <div className="flex items-center gap-1">
           <span className="w-2 h-2 rounded-full bg-green-500" />
@@ -235,7 +253,27 @@ function DayDetails({ date, data }) {
             </div>
           ))}
 
-          {/* Gastos */}
+          {/* 🔥 Gastos fijos */}
+          {data.fixedExpenses.map((fixed) => (
+            <div
+              key={fixed.id}
+              className="flex items-start gap-2 p-2 rounded-lg bg-indigo-50 border border-indigo-100"
+            >
+              <div className="w-6 h-6 rounded bg-indigo-100 flex items-center justify-center text-xs flex-shrink-0">
+                🔒
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-gray-900 truncate">
+                  {fixed.title}
+                </p>
+                <p className="text-xs text-gray-500">
+                  {formatCurrency(fixed.amount)} • Fijo mensual
+                </p>
+              </div>
+            </div>
+          ))}
+
+          {/* Gastos del día */}
           {data.expenses.map((expense) => (
             <div
               key={expense.id}

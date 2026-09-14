@@ -133,3 +133,32 @@ export async function deleteTask(taskId) {
     return { error };
   }
 }
+// ============================================
+// ACTUALIZAR ORDEN DE TAREA (KANBAN)
+// ============================================
+export async function updateTaskOrder({ taskId, status, position }) {
+  try {
+    const updates = { status };
+    if (position !== undefined) {
+      updates.position = position;
+    }
+    if (status === 'completed') {
+      updates.completed_at = new Date().toISOString();
+    } else {
+      updates.completed_at = null;
+    }
+
+    const { data, error } = await supabase
+      .from('tasks')
+      .update(updates)
+      .eq('id', taskId)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return { data, error: null };
+  } catch (error) {
+    console.error('Error actualizando orden de tarea:', error);
+    return { data: null, error };
+  }
+}

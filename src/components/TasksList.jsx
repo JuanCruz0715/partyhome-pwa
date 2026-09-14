@@ -1,15 +1,17 @@
 import { useState } from 'react';
-import { Plus, ClipboardList } from 'lucide-react';
+import { Plus, ClipboardList, LayoutList, Kanban } from 'lucide-react';
 import { useTasks } from '../hooks/useTasks';
 import { updateTaskStatus, deleteTask } from '../services/tasks';
 import TaskCard from './TaskCard';
+import KanbanBoard from './KanbanBoard';
 import CreateTaskModal from './CreateTaskModal';
 import toast from 'react-hot-toast';
 
 export default function TasksList({ partyId }) {
   const { tasks, loading, refresh } = useTasks(partyId);
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [filter, setFilter] = useState('all'); // all, pending, completed
+  const [filter, setFilter] = useState('all');
+  const [view, setView] = useState('kanban'); // 'list' o 'kanban'
 
   const handleToggleComplete = async (task) => {
     const newStatus = task.status === 'completed' ? 'pending' : 'completed';
@@ -31,22 +33,39 @@ export default function TasksList({ partyId }) {
     return true;
   });
 
+  // Si es Kanban, renderizar el tablero directamente
+  if (view === 'kanban') {
+    return (
+      <div>
+        {/* Toggle de vista */}
+        <div className="flex justify-end mb-3">
+          <ViewToggle view={view} setView={setView} />
+        </div>
+        <KanbanBoard partyId={partyId} />
+      </div>
+    );
+  }
+
+  // Vista lista (la tuya original)
   return (
     <div className="card">
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
         <div className="flex items-center gap-2">
           <ClipboardList className="text-primary-600" size={20} />
           <h2 className="text-xl font-bold text-gray-900">
             Tareas ({tasks.length})
           </h2>
         </div>
-        <button
-          onClick={() => setShowCreateModal(true)}
-          className="btn-primary flex items-center gap-2 text-sm"
-        >
-          <Plus size={16} />
-          Nueva
-        </button>
+        <div className="flex items-center gap-2">
+          <ViewToggle view={view} setView={setView} />
+          <button
+            onClick={() => setShowCreateModal(true)}
+            className="btn-primary flex items-center gap-2 text-sm"
+          >
+            <Plus size={16} />
+            Nueva
+          </button>
+        </div>
       </div>
 
       {/* Filtros */}
@@ -70,7 +89,7 @@ export default function TasksList({ partyId }) {
         ))}
       </div>
 
-      {/* Lista de tareas */}
+      {/* Lista */}
       {loading ? (
         <div className="text-center py-8 text-gray-500">Cargando tareas...</div>
       ) : filteredTasks.length === 0 ? (
@@ -106,6 +125,38 @@ export default function TasksList({ partyId }) {
         onSuccess={refresh}
         partyId={partyId}
       />
+    </div>
+  );
+}
+
+// Toggle de vista Lista/Kanban
+function ViewToggle({ view, setView }) {
+  return (
+    <div className="flex items-center bg-gray-100 rounded-lg p-1">
+      <button
+        onClick={() => setView('list')}
+        className={`flex items-center gap-1 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+          view === 'list'
+            ? 'bg-white text-primary-600 shadow-sm'
+            : 'text-gray-600 hover:text-gray-900'
+        }`}
+        title="Vista lista"
+      >
+        <LayoutList size={14} />
+        Lista
+      </button>
+      <button
+        onClick={() => setView('kanban')}
+        className={`flex items-center gap-1 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+          view === 'kanban'
+            ? 'bg-white text-primary-600 shadow-sm'
+            : 'text-gray-600 hover:text-gray-900'
+        }`}
+        title="Vista kanban"
+      >
+        <Kanban size={14} />
+        Kanban
+      </button>
     </div>
   );
 }

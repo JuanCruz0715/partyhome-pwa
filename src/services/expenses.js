@@ -1,8 +1,9 @@
 import { supabase } from '../lib/supabase';
 
 // ============================================
-// CREAR GASTO
+// GASTOS (del mes)
 // ============================================
+
 export async function createExpense({
   partyId,
   title,
@@ -10,9 +11,9 @@ export async function createExpense({
   amount,
   category,
   paidBy,
-  splitType = 'equal',
   date,
-  isShared = true,
+  isIncome = false,
+  isFixed = false,
 }) {
   try {
     const { data, error } = await supabase
@@ -24,9 +25,9 @@ export async function createExpense({
         amount: parseFloat(amount),
         category,
         paid_by: paidBy,
-        split_type: splitType,
         date: date || new Date().toISOString().split('T')[0],
-        is_shared: isShared,
+        is_income: isIncome,
+        is_fixed: isFixed,
       })
       .select()
       .single();
@@ -39,11 +40,11 @@ export async function createExpense({
   }
 }
 
-// ============================================
-// OBTENER GASTOS DE UNA PARTY
-// ============================================
-export async function getExpenses(partyId) {
+export async function getExpensesByMonth(partyId, year, month) {
   try {
+    const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
+    const endDate = new Date(year, month, 0).toISOString().split('T')[0];
+
     const { data, error } = await supabase
       .from('expenses')
       .select(`
@@ -51,8 +52,9 @@ export async function getExpenses(partyId) {
         paid_by_profile:paid_by (id, name, email, avatar_url)
       `)
       .eq('party_id', partyId)
-      .order('date', { ascending: false })
-      .order('created_at', { ascending: false });
+      .gte('date', startDate)
+      .lte('date', endDate)
+      .order('date', { ascending: false });
 
     if (error) throw error;
     return { data: data || [], error: null };
@@ -62,40 +64,12 @@ export async function getExpenses(partyId) {
   }
 }
 
-// ============================================
-// ACTUALIZAR GASTO
-// ============================================
-export async function updateExpense({ expenseId, updates }) {
-  try {
-    if (updates.amount) {
-      updates.amount = parseFloat(updates.amount);
-    }
-
-    const { data, error } = await supabase
-      .from('expenses')
-      .update(updates)
-      .eq('id', expenseId)
-      .select()
-      .single();
-
-    if (error) throw error;
-    return { data, error: null };
-  } catch (error) {
-    console.error('Error actualizando gasto:', error);
-    return { data: null, error };
-  }
-}
-
-// ============================================
-// ELIMINAR GASTO
-// ============================================
 export async function deleteExpense(expenseId) {
   try {
     const { error } = await supabase
       .from('expenses')
       .delete()
       .eq('id', expenseId);
-
     if (error) throw error;
     return { error: null };
   } catch (error) {
@@ -105,28 +79,30 @@ export async function deleteExpense(expenseId) {
 }
 
 // ============================================
-// PAGOS ENTRE MIEMBROS
+// GASTOS FIJOS (configuración recurrente)
 // ============================================
 
-// Registrar un pago
-export async function createPayment({
+export async function createFixedExpense({
   partyId,
-  fromUserId,
-  toUserId,
+  title,
   amount,
-  note,
-  date,
+  category,
+  dayOfMonth,
+  isIncome = false,
+  userId,
 }) {
   try {
     const { data, error } = await supabase
-      .from('payments')
+      .from('fixed_expenses_config')
       .insert({
         party_id: partyId,
-        from_user_id: fromUserId,
-        to_user_id: toUserId,
+        title,
         amount: parseFloat(amount),
-        note: note || null,
-        date: date || new Date().toISOString().split('T')[0],
+        category,
+        day_of_month: parseInt(dayOfMonth),
+        is_income: isIncome,
+        created_by: userId,
+        active: true,
       })
       .select()
       .single();
@@ -134,155 +110,106 @@ export async function createPayment({
     if (error) throw error;
     return { data, error: null };
   } catch (error) {
-    console.error('Error creando pago:', error);
+    console.error('Error creando gasto fijo:', error);
     return { data: null, error };
   }
 }
 
-// Obtener pagos de una party
-export async function getPayments(partyId) {
+export async function getFixedExpenses(partyId) {
   try {
     const { data, error } = await supabase
-      .from('payments')
-      .select(`
-        *,
-        from_profile:from_user_id (id, name, email, avatar_url),
-        to_profile:to_user_id (id, name, email, avatar_url)
-      `)
+      .from('fixed_expenses_config')
+      .select('*')
       .eq('party_id', partyId)
-      .order('date', { ascending: false })
-      .order('created_at', { ascending: false });
+      .eq('active', true)
+      .order('day_of_month', { ascending: true });
 
     if (error) throw error;
     return { data: data || [], error: null };
   } catch (error) {
-    console.error('Error obteniendo pagos:', error);
+    console.error('Error obteniendo gastos fijos:', error);
     return { data: null, error };
   }
 }
 
-// Eliminar un pago
-export async function deletePayment(paymentId) {
+export async function deleteFixedExpense(id) {
   try {
     const { error } = await supabase
-      .from('payments')
-      .delete()
-      .eq('id', paymentId);
-
+      .from('fixed_expenses_config')
+      .update({ active: false })
+      .eq('id', id);
     if (error) throw error;
     return { error: null };
   } catch (error) {
-    console.error('Error eliminando pago:', error);
+    console.error('Error eliminando gasto fijo:', error);
     return { error };
   }
 }
 
-// ============================================
-// CALCULAR BALANCE (CON PAGOS)
-// ============================================
-export function calculateBalance(expenses, members, payments = []) {
-  if (!expenses || !members || members.length === 0) {
-    return {
-      totalExpenses: 0,
-      totalShared: 0,
-      totalFixed: 0,
-      perPerson: 0,
-      balances: [],
-      totalMembers: 0,
-    };
+export async function isFixedExpensePaid(fixedId, year, month) {
+  try {
+    const { data, error } = await supabase
+      .from('expenses')
+      .select('id')
+      .eq('fixed_config_id', fixedId)
+      .gte('date', `${year}-${String(month).padStart(2, '0')}-01`)
+      .lte('date', new Date(year, month, 0).toISOString().split('T')[0]);
+
+    if (error) throw error;
+    return { isPaid: (data?.length || 0) > 0, error: null };
+  } catch (error) {
+    console.error('Error verificando pago:', error);
+    return { isPaid: false, error };
   }
+}
 
-  // Separar gastos compartidos de fijos
-  const sharedExpenses = expenses.filter((exp) => exp.is_shared !== false);
-  const fixedExpenses = expenses.filter((exp) => exp.is_shared === false);
+export async function markFixedAsPaid({
+  fixedExpense,
+  partyId,
+  userId,
+  date,
+}) {
+  try {
+    const { data, error } = await supabase
+      .from('expenses')
+      .insert({
+        party_id: partyId,
+        title: fixedExpense.title,
+        amount: parseFloat(fixedExpense.amount),
+        category: fixedExpense.category,
+        paid_by: userId,
+        date: date || new Date().toISOString().split('T')[0],
+        is_income: fixedExpense.is_income || false,
+        is_fixed: true,
+        fixed_config_id: fixedExpense.id,
+      })
+      .select()
+      .single();
 
-  // Total gastado
-  const totalExpenses = expenses.reduce(
-    (sum, exp) => sum + parseFloat(exp.amount),
-    0
-  );
+    if (error) throw error;
+    return { data, error: null };
+  } catch (error) {
+    console.error('Error marcando como pagado:', error);
+    return { data: null, error };
+  }
+}
 
-  const totalShared = sharedExpenses.reduce(
-    (sum, exp) => sum + parseFloat(exp.amount),
-    0
-  );
+// ============================================
+// CÁLCULOS MENSUALES
+// ============================================
 
-  const totalFixed = fixedExpenses.reduce(
-    (sum, exp) => sum + parseFloat(exp.amount),
-    0
-  );
+export function calculateMonthlyBalance(expenses) {
+  const totalIncome = expenses
+    .filter((e) => e.is_income === true)
+    .reduce((sum, e) => sum + parseFloat(e.amount), 0);
 
-  const perPerson = totalShared / members.length;
-
-  // Cuánto pagó cada uno en gastos compartidos
-  const paidByEach = {};
-  members.forEach((m) => {
-    paidByEach[m.id] = 0;
-  });
-
-  sharedExpenses.forEach((exp) => {
-    if (paidByEach[exp.paid_by] !== undefined) {
-      paidByEach[exp.paid_by] += parseFloat(exp.amount);
-    }
-  });
-
-  // Cuánto pagó cada uno en gastos fijos
-  const fixedByEach = {};
-  members.forEach((m) => {
-    fixedByEach[m.id] = 0;
-  });
-
-  fixedExpenses.forEach((exp) => {
-    if (fixedByEach[exp.paid_by] !== undefined) {
-      fixedByEach[exp.paid_by] += parseFloat(exp.amount);
-    }
-  });
-
-  // Procesar pagos: restan deuda
-  const paidOut = {};
-  const received = {};
-  members.forEach((m) => {
-    paidOut[m.id] = 0;
-    received[m.id] = 0;
-  });
-
-  payments.forEach((payment) => {
-    if (paidOut[payment.from_user_id] !== undefined) {
-      paidOut[payment.from_user_id] += parseFloat(payment.amount);
-    }
-    if (received[payment.to_user_id] !== undefined) {
-      received[payment.to_user_id] += parseFloat(payment.amount);
-    }
-  });
-
-  // Calcular balance final
-  const balances = members.map((member) => {
-    const paid = paidByEach[member.id] || 0;
-    const owed = perPerson;
-    const paidToOthers = paidOut[member.id] || 0;
-    const receivedFromOthers = received[member.id] || 0;
-
-    const balance = paid - owed + receivedFromOthers - paidToOthers;
-
-    return {
-      user_id: member.id,
-      name: member.name,
-      email: member.email,
-      paid: paid,
-      owed: owed,
-      balance: balance,
-      fixedPaid: fixedByEach[member.id] || 0,
-      paidToOthers,
-      receivedFromOthers,
-    };
-  });
+  const totalExpenses = expenses
+    .filter((e) => e.is_income !== true)
+    .reduce((sum, e) => sum + parseFloat(e.amount), 0);
 
   return {
+    totalIncome,
     totalExpenses,
-    totalShared,
-    totalFixed,
-    perPerson,
-    balances,
-    totalMembers: members.length,
+    balance: totalIncome - totalExpenses,
   };
 }
