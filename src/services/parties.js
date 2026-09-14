@@ -190,3 +190,60 @@ export async function getPartyById(partyId) {
     return { data: null, error };
   }
 }
+// ============================================
+// ACTUALIZAR FONDO DE PARTY
+// ============================================
+export async function updatePartyBackground({
+  partyId,
+  backgroundType,
+  backgroundValue,
+  backgroundUrl,
+}) {
+  try {
+    const { data, error } = await supabase
+      .from('parties')
+      .update({
+        background_type: backgroundType,
+        background_value: backgroundValue,
+        background_url: backgroundUrl,
+      })
+      .eq('id', partyId)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return { data, error: null };
+  } catch (error) {
+    console.error('Error actualizando fondo:', error);
+    return { data: null, error };
+  }
+}
+
+// ============================================
+// SUBIR IMAGEN DE FONDO
+// ============================================
+export async function uploadPartyBackground({ partyId, file }) {
+  try {
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${partyId}-${Date.now()}.${fileExt}`;
+    const filePath = fileName;
+
+    const { error: uploadError } = await supabase.storage
+      .from('party-backgrounds')
+      .upload(filePath, file, {
+        cacheControl: '3600',
+        upsert: false,
+      });
+
+    if (uploadError) throw uploadError;
+
+    const { data: urlData } = supabase.storage
+      .from('party-backgrounds')
+      .getPublicUrl(filePath);
+
+    return { data: { url: urlData.publicUrl, path: filePath }, error: null };
+  } catch (error) {
+    console.error('Error subiendo imagen:', error);
+    return { data: null, error };
+  }
+}
