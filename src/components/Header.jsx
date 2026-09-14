@@ -1,7 +1,8 @@
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { Home, LogOut, User } from 'lucide-react';
+import { LogOut, User } from 'lucide-react';
+import NotificationBell from './NotificationBell';
 
 export default function Header() {
   const { profile, signOut } = useAuth();
@@ -9,24 +10,25 @@ export default function Header() {
 
   const handleSignOut = async () => {
     const { error } = await signOut();
-    if (error) {
-      toast.error('Error al cerrar sesión');
-    } else {
+    if (error) toast.error('Error al cerrar sesión');
+    else {
       toast.success('¡Hasta pronto!');
       navigate('/login');
     }
   };
 
   return (
-    <header className="bg-white border-b border-gray-200 sticky top-0 z-10">
-      <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
+    <header className="bg-white border-b border-gray-200 sticky top-0 z-20">
+      <div className="max-w-6xl mx-auto px-3 sm:px-4 py-3 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <div className="text-2xl">🏠</div>
-          <h1 className="text-xl font-bold text-primary-600">PartyHome</h1>
+          <div className="text-xl sm:text-2xl">🏠</div>
+          <h1 className="text-lg sm:text-xl font-bold text-primary-600">PartyHome</h1>
         </div>
 
-        <div className="flex items-center gap-3">
-          <div className="hidden sm:flex items-center gap-2 text-sm">
+        <div className="flex items-center gap-1 sm:gap-2">
+          <NotificationBell />
+          
+          <div className="hidden sm:flex items-center gap-2 text-sm ml-2">
             <div className="w-8 h-8 rounded-full bg-primary-100 flex items-center justify-center">
               <User size={16} className="text-primary-600" />
             </div>
@@ -34,7 +36,7 @@ export default function Header() {
               {profile?.name || 'Usuario'}
             </span>
           </div>
-          
+
           <button
             onClick={handleSignOut}
             className="p-2 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
